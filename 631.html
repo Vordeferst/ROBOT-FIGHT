@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ROBOT FIGHT</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    height:100%; height:100dvh; overflow:hidden;
+    touch-action:manipulation; user-select:none; -webkit-user-select:none;
+    font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:#07030f; color:#fff;
+  }
+  #app {
+    width:100%; height:100%; display:flex; flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background:
+      radial-gradient(ellipse at 50% 0%, #2a0a4a 0%, transparent 60%),
+      radial-gradient(ellipse at 50% 100%, #0a1a3a 0%, transparent 60%),
+      linear-gradient(180deg, #0a0318 0%, #05010f 100%);
+    position:relative; overflow:hidden;
+  }
+  .hud { display:flex; gap:6px; padding:8px 10px; flex-shrink:0; z-index:5; }
+  .hud-item {
+    flex:1; display:flex; align-items:center; justify-content:center; gap:5px;
+    background:linear-gradient(180deg,#1a1035,#0a0520);
+    border:1.5px solid #6a3aff; border-radius:10px; padding:7px 6px;
+    font-size:12px; font-weight:800; letter-spacing:.5px;
+    box-shadow:0 0 10px rgba(106,58,255,.4),inset 0 1px 0 rgba(255,255,255,.1);
+    color:#b8a8ff;
+  }
+  .hud-item b { color:#ffd700; text-shadow:0 0 8px #ffd700; font-size:14px; }
+
+  .arena {
+    flex:1; min-height:0; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 8px 8px; position:relative;
+  }
+  .arena::after {
+    content:''; position:absolute; bottom:0; left:4%; right:4%; height:4px;
+    background:linear-gradient(90deg,transparent,#6a3aff 20%,#ff2a8a 50%,#6a3aff 80%,transparent);
+    box-shadow:0 0 20px #6a3aff,0 0 40px #ff2a8a; border-radius:2px;
+  }
+  .fighter { width:47%; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative; }
+  .bot-wrap {
+    width:100%; display:flex; justify-content:center; align-items:flex-end;
+    position:relative; filter:drop-shadow(0 8px 16px rgba(0,0,0,.7));
+  }
+  .bot-wrap svg { width:100%; max-width:190px; height:auto; display:block; }
+  .fighter.p .bot-wrap { filter:drop-shadow(0 8px 20px rgba(0,220,255,.4)); }
+  .fighter.e .bot-wrap { filter:drop-shadow(0 8px 20px rgba(255,50,90,.45)); }
+
+  .equip-badge {
+    position:absolute; top:8px; right:2px;
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; background:rgba(0,0,0,.75);
+    border:2px solid; z-index:6;
+    box-shadow:0 0 15px currentColor, inset 0 0 10px rgba(255,255,255,.15);
+    animation:equipFloat 2s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes equipFloat {
+    0%,100% { transform:translateY(0) rotate(-5deg); }
+    50% { transform:translateY(-6px) rotate(5deg); }
+  }
+  .equip-badge::before {
+    content:'ЭКИП';
+    position:absolute; bottom:-14px; left:50%;
+    transform:translateX(-50%);
+    font-size:8px; font-weight:900; letter-spacing:1px;
+    color:#ffd700; text-shadow:0 0 6px #ffd700; white-space:nowrap;
+  }
+  .enemy-equips {
+    position:absolute; top:8px; left:2px;
+    display:flex; flex-direction:column; gap:4px;
+    z-index:6; pointer-events:none;
+  }
+  .enemy-equip {
+    width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; background:rgba(0,0,0,.75);
+    border:2px solid; box-shadow:0 0 10px currentColor;
+    opacity:.4;
+  }
+  .enemy-equip.ready { opacity:1; animation:equipFloat 2s ease-in-out infinite; }
+
+  .fighter.active .bot-wrap { animation:bob 1.8s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+  /* ======== ЗАМАХ → ПАУЗА ЗАРЯДА → УДАР → ВОЗВРАТ ======== */
+  .fighter.p.attack .bot-wrap { animation:lungeP .7s cubic-bezier(.4,0,.2,1); }
+  @keyframes lungeP {
+    0%   { transform: translateX(0) rotate(0) scale(1); }
+    20%  { transform: translateX(-22px) rotate(-5deg) scale(.98); }
+    40%  { transform: translateX(-24px) rotate(-5deg) scale(.98); }
+    55%  { transform: translateX(58px) rotate(5deg) scale(1.02); }
+    65%  { transform: translateX(54px) rotate(5deg) scale(1.02); }
+    85%  { transform: translateX(12px) rotate(1deg) scale(1); }
+    100% { transform: translateX(0) rotate(0) scale(1); }
+  }
+  .fighter.e.attack .bot-wrap { animation:lungeE .7s cubic-bezier(.4,0,.2,1); }
+  @keyframes lungeE {
+    0%   { transform: translateX(0) rotate(0) scale(1); }
+    20%  { transform: translateX(22px) rotate(5deg) scale(.98); }
+    40%  { transform: translateX(24px) rotate(5deg) scale(.98); }
+    55%  { transform: translateX(-58px) rotate(-5deg) scale(1.02); }
+    65%  { transform: translateX(-54px) rotate(-5deg) scale(1.02); }
+    85%  { transform: translateX(-12px) rotate(-1deg) scale(1); }
+    100% { transform: translateX(0) rotate(0) scale(1); }
+  }
+  .fighter.p.attack .p-fist { animation:fistP .7s cubic-bezier(.4,0,.2,1); }
+  @keyframes fistP {
+    0%   { transform: translate(0,0); }
+    20%  { transform: translate(-8px,-2px); }
+    40%  { transform: translate(-10px,-2px); }
+    55%  { transform: translate(38px,-12px); }
+    65%  { transform: translate(35px,-12px); }
+    85%  { transform: translate(5px,-2px); }
+    100% { transform: translate(0,0); }
+  }
+  .fighter.e.attack .e-fist { animation:fistE .7s cubic-bezier(.4,0,.2,1); }
+  @keyframes fistE {
+    0%   { transform: translate(0,0); }
+    20%  { transform: translate(8px,-2px); }
+    40%  { transform: translate(10px,-2px); }
+    55%  { transform: translate(-38px,-12px); }
+    65%  { transform: translate(-35px,-12px); }
+    85%  { transform: translate(-5px,-2px); }
+    100% { transform: translate(0,0); }
+  }
+
+  /* ====== Спец-анимации по типу способности ====== */
+  .fighter.attack.fire .bot-wrap { animation:recoilP .7s; }
+  @keyframes recoilP {
+    0%   { transform: translateX(0); }
+    30%  { transform: translateX(-26px) rotate(-6deg); }
+    45%  { transform: translateX(-28px) rotate(-6deg); }
+    60%  { transform: translateX(10px); }
+    100% { transform: translateX(0); }
+  }
+  .fighter.enemy.attack.fire .bot-wrap { animation:recoilE .7s; }
+  @keyframes recoilE {
+    0%   { transform: translateX(0); }
+    30%  { transform: translateX(26px) rotate(6deg); }
+    45%  { transform: translateX(28px) rotate(6deg); }
+    60%  { transform: translateX(-10px); }
+    100% { transform: translateX(0); }
+  }
+  .fighter.attack.grenade .bot-wrap { animation:throwG .7s; }
+  @keyframes throwG {
+    0%   { transform: translateY(0) rotate(0); }
+    30%  { transform: translateY(-18px) rotate(-10deg); }
+    45%  { transform: translateY(-20px) rotate(-10deg); }
+    65%  { transform: translateY(-4px) rotate(6deg); }
+    100% { transform: translateY(0) rotate(0); }
+  }
+  .fighter.attack.saw .bot-wrap svg { animation:sawShake .1s linear infinite; }
+  @keyframes sawShake {
+    0%,100% { transform: translate(0,0) rotate(0); }
+    25% { transform: translate(-1px,1px) rotate(-0.6deg); }
+    75% { transform: translate(1px,-1px) rotate(0.6deg); }
+  }
+
+  /* Зарядка — свечение кулака во время замаха */
+  .charge-glow {
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+    z-index:8;
+    background:radial-gradient(circle, rgba(255,255,255,.9) 0%, currentColor 30%, transparent 70%);
+    transform:translate(-50%,-50%) scale(0);
+    animation:chargeUp .5s ease-out forwards;
+  }
+  @keyframes chargeUp {
+    0% { transform:translate(-50%,-50%) scale(0); opacity:0; }
+    40% { transform:translate(-50%,-50%) scale(1.3); opacity:1; }
+    55% { transform:translate(-50%,-50%) scale(1.5); opacity:1; }
+    100% { transform:translate(-50%,-50%) scale(0); opacity:0; }
+  }
+
+  .fighter.hurt .bot-wrap { animation:hurt .38s; }
+  @keyframes hurt {
+    0%,100% { transform:translateX(0) rotate(0); filter:none; }
+    25% { transform:translateX(-9px) rotate(-3deg); filter:brightness(3) saturate(0); }
+    75% { transform:translateX(9px) rotate(3deg); filter:brightness(3) saturate(0); }
+  }
+  .fighter.dead .bot-wrap { animation:die .8s forwards; transform-origin:center bottom; }
+  @keyframes die {
+    0% { transform:rotate(0); }
+    30% { transform:rotate(-12deg); filter:brightness(2); }
+    100% { transform:rotate(80deg) translateY(40px); opacity:.25; filter:grayscale(1); }
+  }
+  .fighter.spawn .bot-wrap { animation:spawn .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes spawn {
+    0% { transform:scale(.2) translateY(40px); opacity:0; filter:brightness(4); }
+    100% { transform:scale(1) translateY(0); opacity:1; filter:brightness(1); }
+  }
+
+  .hp-wrap { width:100%; max-width:190px; }
+  .fname {
+    text-align:center; font-size:10px; font-weight:900; letter-spacing:1px;
+    margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .fighter.p .fname { color:#c8d4e0; text-shadow:0 0 8px #00dcff; }
+  .fighter.e .fname { color:#ff9eb2; text-shadow:0 0 8px #ff2255; }
+  .hp-bar {
+    position:relative; height:16px; background:#150a25; border:2px solid #333;
+    border-radius:8px; overflow:hidden; box-shadow:inset 0 2px 6px rgba(0,0,0,.9);
+  }
+  .fighter.p .hp-bar { border-color:#00a8cc; box-shadow:inset 0 2px 6px rgba(0,0,0,.9),0 0 10px rgba(0,220,255,.5); }
+  .fighter.e .hp-bar { border-color:#cc1a44; box-shadow:inset 0 2px 6px rgba(0,0,0,.9),0 0 10px rgba(255,50,90,.5); }
+  .hp-fill {
+    height:100%; width:100%; background:linear-gradient(180deg,#00e0ff,#0066a0);
+    transition:width .4s cubic-bezier(.4,0,.2,1); position:relative; border-radius:6px;
+  }
+  .fighter.e .hp-fill { background:linear-gradient(180deg,#ff3355,#8a0022); }
+  .hp-fill::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg,rgba(255,255,255,.4),transparent 50%); border-radius:6px;
+  }
+  .hp-text {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:900; color:#fff;
+    text-shadow:1px 1px 2px #000,0 0 4px #000;
+  }
+
+  .vs {
+    position:absolute; top:40%; left:50%; transform:translate(-50%,-50%);
+    font-size:30px; font-weight:900; color:#ffd700;
+    text-shadow:0 0 15px #ffd700,0 0 30px #ff8800;
+    pointer-events:none; animation:vsPulse 1.6s ease-in-out infinite; z-index:3;
+  }
+  @keyframes vsPulse {
+    0%,100% { transform:translate(-50%,-50%) scale(1); }
+    50% { transform:translate(-50%,-50%) scale(1.15); }
+  }
+  .statuses {
+    position:absolute; top:-4px; left:50%; transform:translateX(-50%);
+    display:flex; gap:3px; z-index:5; pointer-events:none;
+  }
+  .st-icon {
+    width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+    font-size:12px; background:rgba(0,0,0,.85); border:1px solid #fff;
+    border-radius:50%; box-shadow:0 0 8px currentColor;
+    animation:stFloat 1s ease-in-out infinite alternate;
+  }
+  @keyframes stFloat { from{transform:translateY(0)} to{transform:translateY(-3px)} }
+
+  .turn-bar {
+    flex-shrink:0; text-align:center; padding:8px 12px;
+    font-size:11px; font-weight:900; letter-spacing:1.5px; text-transform:uppercase;
+    background:#0a0520; border-top:1px solid #2a1555; border-bottom:1px solid #2a1555;
+    min-height:30px; display:flex; align-items:center; justify-content:center;
+    transition:color .3s;
+  }
+  .turn-bar.player { color:#00dcff; text-shadow:0 0 12px #00dcff; }
+  .turn-bar.enemy { color:#ff4466; text-shadow:0 0 12px #ff4466; }
+  .turn-bar.idle { color:#666; }
+
+  .actions {
+    flex-shrink:0; display:flex; gap:8px; padding:8px 10px;
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+    -webkit-overflow-scrolling:touch; min-height:0; max-height:96px;
+    transition:max-height .3s; justify-content:center;
+  }
+  .actions::-webkit-scrollbar { display:none; }
+  .actions:empty { max-height:0; padding:0; }
+  .act {
+    flex:0 0 auto; min-width:100px; padding:8px 10px;
+    background:linear-gradient(180deg,#1a0d3a,#0a0520);
+    border:1.5px solid #6a3aff; border-radius:12px; color:#fff;
+    font-family:inherit; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    transition:transform .1s,box-shadow .2s,opacity .2s;
+    box-shadow:0 0 10px rgba(106,58,255,.4),inset 0 1px 0 rgba(255,255,255,.15);
+    position:relative;
+  }
+  .act .ic { font-size:22px; line-height:1; }
+  .act .nm { font-size:10px; font-weight:900; letter-spacing:.3px; text-transform:uppercase; white-space:nowrap; }
+  .act .dm { font-size:14px; font-weight:900; color:#ffd700; text-shadow:0 0 6px #ffd700; }
+  .act:active:not(:disabled) { transform:scale(.93); }
+  .act:disabled { opacity:.35; cursor:not-allowed; }
+  .act.cd::after {
+    content: attr(data-cd);
+    position:absolute; top:-6px; right:-6px;
+    width:22px; height:22px; border-radius:50%;
+    background:#1a0d3a; border:1.5px solid #ffd700;
+    color:#ffd700; font-size:11px; font-weight:900;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 8px rgba(255,215,0,.6);
+  }
+  .act.fire { border-color:#ff6600; box-shadow:0 0 12px rgba(255,102,0,.6); }
+  .act.fire .dm { color:#ff8822; text-shadow:0 0 6px #ff6600; }
+  .act.saw { border-color:#cccccc; box-shadow:0 0 12px rgba(200,200,200,.5); }
+  .act.saw .dm { color:#eee; text-shadow:0 0 6px #fff; }
+  .act.grenade { border-color:#88cc00; box-shadow:0 0 12px rgba(136,204,0,.6); }
+  .act.grenade .dm { color:#aadd33; text-shadow:0 0 6px #88cc00; }
+
+  .main { flex-shrink:0; display:flex; gap:8px; padding:8px 10px 10px; }
+  .big {
+    flex:1; font-family:inherit; font-weight:900; letter-spacing:1.5px;
+    font-size:13px; padding:14px 8px; border:none; border-radius:14px;
+    color:#fff; text-transform:uppercase; cursor:pointer;
+    min-height:54px; touch-action:manipulation;
+    transition:transform .12s, opacity .2s;
+  }
+  .big:active:not(:disabled) { transform:scale(.96); }
+  .big:disabled { opacity:.5; }
+  #fightBtn {
+    flex:1.4;
+    background:linear-gradient(180deg,#ff2a5a 0%,#a8001a 100%);
+    box-shadow:0 4px 0 #6a0010,0 6px 20px rgba(255,42,90,.5);
+  }
+  #shopBtn {
+    background:linear-gradient(180deg,#8a3aff 0%,#4a0a9a 100%);
+    box-shadow:0 4px 0 #2a005a,0 6px 20px rgba(138,58,255,.5);
+    max-width:60px;
+    flex:0.5;
+  }
+  #invBtn {
+    background:linear-gradient(180deg,#00a86b 0%,#005a34 100%);
+    box-shadow:0 4px 0 #003a20,0 6px 20px rgba(0,200,120,.5);
+    max-width:60px;
+    flex:0.5;
+  }
+
+  #fx { position:fixed; inset:0; pointer-events:none; z-index:100; overflow:hidden; }
+  .dmg {
+    position:absolute; font-size:32px; font-weight:900;
+    text-shadow:0 0 12px currentColor,2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;
+    animation:dmgFly .95s ease-out forwards; transform:translate(-50%,0);
+    will-change:transform,opacity;
+  }
+  @keyframes dmgFly {
+    0%   { transform:translate(-50%,0) scale(.3); opacity:0; }
+    15%  { transform:translate(-50%,-25px) scale(1.6); opacity:1; }
+    30%  { transform:translate(-50%,-30px) scale(1.2); opacity:1; }
+    100% { transform:translate(-50%,-120px) scale(.85); opacity:0; }
+  }
+  .dmg.crit { font-size:46px; }
+  .particle {
+    position:absolute; width:8px; height:8px; border-radius:2px;
+    will-change:transform,opacity;
+  }
+  .shock {
+    position:absolute; width:20px; height:20px;
+    border:3px solid #fff; border-radius:50%;
+    transform:translate(-50%,-50%);
+    animation:shock .5s ease-out forwards; pointer-events:none;
+  }
+  @keyframes shock {
+    0%   { width:20px; height:20px; opacity:1; border-width:4px; }
+    100% { width:180px; height:180px; opacity:0; border-width:1px; }
+  }
+  .flash {
+    position:absolute; width:60px; height:60px;
+    background:radial-gradient(circle,#fff 0%,rgba(255,220,100,.9) 30%,transparent 70%);
+    border-radius:50%; transform:translate(-50%,-50%);
+    animation:flash .3s ease-out forwards; pointer-events:none;
+  }
+  @keyframes flash {
+    0% { transform:translate(-50%,-50%) scale(.3); opacity:1; }
+    100% { transform:translate(-50%,-50%) scale(1.8); opacity:0; }
+  }
+  .speedline {
+    position:absolute; height:3px;
+    background:linear-gradient(90deg,transparent,#00dcff,#fff);
+    border-radius:2px; transform-origin:left center;
+    animation:speedline .35s ease-out forwards; pointer-events:none;
+  }
+  @keyframes speedline {
+    0% { transform:translateX(0) scaleX(0); opacity:1; }
+    60% { opacity:1; }
+    100% { transform:translateX(150px) scaleX(1); opacity:0; }
+  }
+  .ability-banner {
+    position:absolute; left:50%; top:36%;
+    transform:translate(-50%,-50%) scale(0.4);
+    font-size:24px; font-weight:900; letter-spacing:3px;
+    text-transform:uppercase; pointer-events:none; z-index:110;
+    text-shadow:0 0 20px currentColor,3px 3px 0 #000;
+    animation:abilityBanner 1.4s ease-out forwards;
+    white-space:nowrap;
+  }
+  @keyframes abilityBanner {
+    0% { transform:translate(-50%,-50%) scale(0.4); opacity:0; }
+    15% { transform:translate(-50%,-50%) scale(1.15); opacity:1; }
+    25% { transform:translate(-50%,-50%) scale(1); opacity:1; }
+    75% { opacity:1; }
+    100% { transform:translate(-50%,-70%) scale(1); opacity:0; }
+  }
+  .fireball {
+    position:absolute; width:50px; height:50px;
+    border-radius:50%;
+    background:radial-gradient(circle,#fff 0%,#ffcc00 20%,#ff6600 60%,#aa2200 100%);
+    transform:translate(-50%,-50%) scale(0.3);
+    box-shadow:0 0 40px #ff6600,0 0 80px #ff3300;
+    animation:fireball .55s ease-out forwards; pointer-events:none; z-index:105;
+  }
+  @keyframes fireball {
+    0% { transform:translate(-50%,-50%) scale(0.3); opacity:1; }
+    70% { opacity:1; }
+    100% { transform:translate(-50%,-50%) scale(2.2); opacity:0; }
+  }
+  .explosion {
+    position:absolute; width:80px; height:80px;
+    background:radial-gradient(circle,#fff 0%,#ddff88 20%,#88cc00 50%,transparent 75%);
+    border-radius:50%; transform:translate(-50%,-50%) scale(0.2);
+    animation:explosion .6s ease-out forwards; pointer-events:none; z-index:105;
+  }
+  @keyframes explosion {
+    0% { transform:translate(-50%,-50%) scale(0.2); opacity:1; }
+    40% { transform:translate(-50%,-50%) scale(1.6); opacity:1; }
+    100% { transform:translate(-50%,-50%) scale(2.4); opacity:0; }
+  }
+  .saw-trail {
+    position:absolute; height:6px;
+    background:linear-gradient(90deg,transparent,#fff,#cccccc,transparent);
+    border-radius:3px; box-shadow:0 0 15px #fff,0 0 30px #aaa;
+    pointer-events:none; z-index:105;
+    animation:sawTrail .4s ease-out forwards;
+  }
+  @keyframes sawTrail {
+    0% { opacity:0; transform:scaleX(0); }
+    30% { opacity:1; transform:scaleX(1); }
+    100% { opacity:0; transform:scaleX(1.2); }
+  }
+
+  #toast {
+    position:fixed; top:calc(env(safe-area-inset-top) + 10px); left:50%;
+    transform:translateX(-50%) translateY(-140px);
+    padding:12px 20px; background:linear-gradient(180deg,#8a3aff,#4a0a9a);
+    border:2px solid #d400ff; border-radius:12px;
+    font-weight:900; font-size:13px; letter-spacing:.5px;
+    box-shadow:0 0 25px rgba(212,0,255,.8);
+    transition:transform .4s cubic-bezier(.4,0,.2,1);
+    z-index:300; pointer-events:none; max-width:90vw; text-align:center;
+  }
+  #toast.show { transform:translateX(-50%) translateY(0); }
+
+  .modal {
+    position:fixed; inset:0; background:rgba(0,0,0,.92);
+    display:none; z-index:200; padding:14px; backdrop-filter:blur(8px);
+  }
+  .modal.show { display:flex; align-items:center; justify-content:center; }
+  .modal-box {
+    background:linear-gradient(180deg,#1a0d3a,#0a0520);
+    border:2px solid #8a3aff; border-radius:20px;
+    padding:20px 16px; width:100%; max-width:440px;
+    max-height:92dvh; overflow-y:auto;
+    box-shadow:0 0 50px rgba(138,58,255,.7);
+    position:relative;
+  }
+  .modal-box h2 {
+    font-size:20px; font-weight:900; letter-spacing:3px;
+    color:#d4a5ff; text-shadow:0 0 15px #8a3aff;
+    margin-bottom:14px; text-align:center;
+  }
+  .x-btn {
+    position:absolute; top:10px; right:10px;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(255,50,80,.15); border:1.5px solid #ff2a5a;
+    color:#ff2a5a; font-size:16px; font-weight:900; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .x-btn:active { background:#ff2a5a; color:#fff; }
+
+  #matchmaking {
+    position:fixed; inset:0; background:rgba(0,0,0,.95);
+    z-index:250; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:22px;
+    backdrop-filter:blur(10px); padding:20px;
+  }
+  #matchmaking.show { display:flex; }
+  .mm-title {
+    font-size:20px; font-weight:900; letter-spacing:4px;
+    color:#ff2a5a; text-shadow:0 0 20px #ff2a5a;
+    animation:mmPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes mmPulse {
+    0%,100% { opacity:1; letter-spacing:4px; }
+    50% { opacity:.7; letter-spacing:6px; }
+  }
+  .mm-spinner { width:100px; height:100px; position:relative; }
+  .mm-spinner::before, .mm-spinner::after {
+    content:''; position:absolute; inset:0;
+    border-radius:50%; border:4px solid transparent;
+    border-top-color:#00dcff; border-right-color:#00dcff;
+    animation:mmSpin 1s linear infinite;
+  }
+  .mm-spinner::after {
+    inset:14px; border-top-color:#ff2a5a; border-right-color:#ff2a5a;
+    animation:mmSpin 1.4s linear infinite reverse;
+  }
+  .mm-inner {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:32px; animation:mmBounce 1s ease-in-out infinite;
+  }
+  @keyframes mmSpin { to { transform:rotate(360deg); } }
+  @keyframes mmBounce {
+    0%,100% { transform:scale(1); }
+    50% { transform:scale(1.15); }
+  }
+  .mm-sub { font-size:12px; color:#8899aa; letter-spacing:2px; font-family:monospace; }
+  .mm-names {
+    font-size:16px; color:#00dcff; letter-spacing:1.5px;
+    font-weight:900; min-height:22px; text-shadow:0 0 12px #00dcff;
+    text-align:center; max-width:90vw; word-break:break-all;
+  }
+
+  /* ============ СУНДУК (переделан) ============ */
+  .chest-wrap {
+    width:100%; max-width:230px;
+    aspect-ratio: 200 / 165;
+    margin:14px auto 12px;
+    position:relative;
+    perspective: 900px;
+    cursor:pointer;
+    user-select:none;
+    transition:transform .1s;
+  }
+  .chest-wrap:active { transform:scale(.97); }
+  .chest-base {
+    position:absolute;
+    top:45%; left:0; width:100%; height:55%;
+    z-index:1;
+  }
+  .chest-base svg { width:100%; height:100%; display:block; }
+  .chest-lid {
+    position:absolute;
+    top:0; left:0; width:100%; height:45%;
+    transform-origin: center bottom;
+    transform-style: preserve-3d;
+    transition: transform .85s cubic-bezier(.5,0,.3,1);
+    z-index:2;
+    backface-visibility:visible;
+  }
+  .chest-lid svg { width:100%; height:100%; display:block; }
+  .chest-wrap.open .chest-lid {
+    transform: rotateX(-105deg);
+  }
+  .lightbeam {
+    position:absolute;
+    top:45%; left:50%;
+    width:110px; height:200px;
+    transform:translateX(-50%) scaleY(0);
+    transform-origin:top center;
+    background:radial-gradient(ellipse at center top, rgba(255,215,0,.95), rgba(255,180,0,.4) 40%, transparent 72%);
+    pointer-events:none;
+    z-index:0;
+    transition:transform .5s ease-out .35s;
+  }
+  .chest-wrap.open .lightbeam {
+    transform:translateX(-50%) scaleY(1);
+  }
+  .flyitem {
+    position:absolute;
+    top:45%; left:50%;
+    font-size:52px;
+    transform:translate(-50%,0);
+    opacity:0; pointer-events:none; z-index:10;
+    filter:drop-shadow(0 0 20px currentColor);
+  }
+  .flyitem.fly { animation:flyUp 1.3s cubic-bezier(.2,1,.4,1) forwards; }
+  @keyframes flyUp {
+    0% { opacity:0; transform:translate(-50%,0) scale(.2) rotate(-30deg); }
+    30% { opacity:1; transform:translate(-50%,-95px) scale(1.4) rotate(10deg); }
+    60% { opacity:1; transform:translate(-50%,-145px) scale(1.2) rotate(-5deg); }
+    100% { opacity:0; transform:translate(-50%,-230px) scale(1.5) rotate(15deg); }
+  }
+
+  .chest-btn {
+    background:linear-gradient(180deg,#2a1555,#1a0d3a);
+    border:2px solid #ffd700; border-radius:12px;
+    padding:10px 20px; font-family:inherit;
+    color:#ffd700; font-weight:900; font-size:14px;
+    letter-spacing:1.5px; text-shadow:0 0 8px #ffd700;
+    box-shadow:0 0 15px rgba(255,215,0,.5);
+    cursor:pointer; margin-top:8px;
+  }
+  .chest-btn:active { transform:scale(.96); }
+  .chest-btn:disabled { opacity:.5; }
+
+  .balance {
+    font-size:13px; font-weight:800; margin-bottom:8px;
+    letter-spacing:1px; color:#b8a8ff; text-align:center;
+  }
+  .balance span { color:#ffd700; text-shadow:0 0 10px #ffd700; font-size:16px; }
+
+  .price-info {
+    background:linear-gradient(180deg,#0a2a1a,#041410);
+    border:1.5px solid #00a86b;
+    border-radius:10px;
+    padding:10px 12px;
+    margin:14px 0;
+    text-align:center;
+    font-size:12px;
+    color:#88eeaa;
+    letter-spacing:1px;
+    font-weight:800;
+    box-shadow:0 0 12px rgba(0,168,107,.4);
+  }
+  .price-info b { color:#ffd700; text-shadow:0 0 8px #ffd700; }
+  .price-info .tg { color:#4fc3f7; text-shadow:0 0 8px #4fc3f7; }
+
+  .promo-section {
+    border-top:1px solid rgba(106,58,255,.3);
+    padding-top:12px;
+    margin-bottom:12px;
+    text-align:left;
+  }
+  .promo-title {
+    font-size:11px; font-weight:900; letter-spacing:2px;
+    color:#ffd700; text-transform:uppercase;
+    margin-bottom:8px; text-shadow:0 0 8px #ffd700;
+    text-align:center;
+  }
+  .promo-row { display:flex; gap:6px; margin-bottom:8px; }
+  .promo-row input {
+    flex:1; min-width:0;
+    padding:10px 12px;
+    background:#0a0520;
+    border:1.5px solid #6a3aff;
+    border-radius:10px;
+    color:#fff;
+    font-family:inherit;
+    font-weight:800;
+    font-size:13px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    outline:none;
+  }
+  .promo-row input:focus { border-color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,.4); }
+  .promo-row input::placeholder { color:#555; letter-spacing:1px; }
+  .promo-btn {
+    padding:10px 14px;
+    background:linear-gradient(180deg,#ffd700,#a07a00);
+    border:none; border-radius:10px;
+    color:#1a0d3a; font-family:inherit;
+    font-weight:900; font-size:12px; letter-spacing:1px;
+    cursor:pointer; text-transform:uppercase;
+    box-shadow:0 0 12px rgba(255,215,0,.5);
+  }
+  .promo-btn:active { transform:scale(.96); }
+  .promo-status {
+    text-align:center;
+    font-size:11px;
+    font-weight:800;
+    min-height:16px;
+    letter-spacing:0.5px;
+  }
+  .promo-status.ok { color:#00ff88; text-shadow:0 0 8px #00ff88; }
+  .promo-status.err { color:#ff2a5a; text-shadow:0 0 8px #ff2a5a; }
+  .promo-count {
+    text-align:center;
+    font-size:10px;
+    color:#8899aa;
+    letter-spacing:1px;
+    margin-top:4px;
+  }
+
+  /* ИНВЕНТАРЬ */
+  .inv-grid {
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:10px;
+    margin-bottom:14px;
+    min-height:100px;
+  }
+  .inv-card {
+    background:linear-gradient(180deg,#1a0d3a,#0a0520);
+    border:2px solid #6a3aff;
+    border-radius:14px;
+    padding:14px 10px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .15s;
+    position:relative;
+  }
+  .inv-card:active { transform:scale(.96); }
+  .inv-card.equipped { border-color:#00ff88; box-shadow:0 0 20px rgba(0,255,136,.6); }
+  .inv-card.equipped::before {
+    content:'✓ ЭКИП';
+    position:absolute;
+    top:-8px; left:50%;
+    transform:translateX(-50%);
+    background:#00ff88;
+    color:#0a0520;
+    font-size:9px; font-weight:900;
+    padding:2px 8px;
+    border-radius:6px;
+    letter-spacing:1px;
+    box-shadow:0 0 10px #00ff88;
+  }
+  .inv-card .inv-ic { font-size:34px; line-height:1; margin-bottom:4px; }
+  .inv-card .inv-nm {
+    font-size:10px; font-weight:900;
+    letter-spacing:0.5px; text-transform:uppercase;
+    margin-bottom:4px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .inv-card .inv-dm {
+    font-size:16px; font-weight:900;
+    color:#ffd700; text-shadow:0 0 8px #ffd700;
+  }
+  .inv-card .inv-cd {
+    font-size:9px; color:#8899aa;
+    margin-top:2px; letter-spacing:0.5px;
+  }
+  .inv-card.fire { border-color:#ff6600; }
+  .inv-card.fire .inv-dm { color:#ff8822; text-shadow:0 0 8px #ff6600; }
+  .inv-card.saw { border-color:#ccc; }
+  .inv-card.saw .inv-dm { color:#fff; text-shadow:0 0 8px #fff; }
+  .inv-card.grenade { border-color:#88cc00; }
+  .inv-card.grenade .inv-dm { color:#aadd33; text-shadow:0 0 8px #88cc00; }
+  .inv-empty {
+    grid-column:1/-1; text-align:center; color:#666;
+    font-size:12px; padding:30px 10px; letter-spacing:1px;
+  }
+  .inv-hint {
+    text-align:center; font-size:10px; color:#8899aa;
+    letter-spacing:1px; margin-top:6px;
+    padding:8px; background:rgba(0,0,0,.4);
+    border-radius:8px;
+  }
+  .inv-hint b { color:#ffd700; }
+
+  #resModal .modal-box { border-color:#00dcff; box-shadow:0 0 50px rgba(0,220,255,.6); max-width:320px; }
+  #resTitle {
+    font-size:38px; font-weight:900; letter-spacing:4px;
+    margin-bottom:10px; animation:resPop .6s cubic-bezier(.2,1.6,.5,1);
+    text-align:center;
+  }
+  @keyframes resPop {
+    0% { transform:scale(0) rotate(-15deg); opacity:0; }
+    100% { transform:scale(1) rotate(0); opacity:1; }
+  }
+  #resTitle.win { color:#00ff88; text-shadow:0 0 30px #00ff88; }
+  #resTitle.lose { color:#ff2a5a; text-shadow:0 0 30px #ff2a5a; }
+  #resReward {
+    font-size:15px; color:#ffd700; letter-spacing:2px;
+    margin-bottom:20px; text-shadow:0 0 12px #ffd700;
+    text-align:center;
+  }
+  #resBtn {
+    width:100%; padding:14px;
+    font-family:inherit; font-weight:900;
+    letter-spacing:3px; font-size:14px;
+    background:linear-gradient(180deg,#00dcff,#0066a0);
+    color:#fff; border:none; border-radius:12px;
+    cursor:pointer; box-shadow:0 0 25px rgba(0,220,255,.7);
+    text-transform:uppercase;
+  }
+  #resBtn:active { transform:scale(.96); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="hud">
+    <div class="hud-item">💎 <b id="hudPts">100</b></div>
+    <div class="hud-item">🏆 <b id="hudWins">0</b></div>
+    <div class="hud-item">⭐ <b id="hudLvl">1</b></div>
+  </div>
+
+  <div class="arena">
+    <div class="fighter p" id="pF">
+      <div class="statuses" id="pSt"></div>
+      <div class="bot-wrap" id="pBotWrap"></div>
+      <div class="equip-badge" id="equipBadge" style="display:none;"></div>
+      <div class="hp-wrap">
+        <div class="fname" id="pName">ТВОЙ РОБОТ</div>
+        <div class="hp-bar">
+          <div class="hp-fill" id="pHP" style="width:100%"></div>
+          <div class="hp-text" id="pHPT">100 / 100</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vs" id="vs">VS</div>
+
+    <div class="fighter e" id="eF" style="visibility:hidden">
+      <div class="statuses" id="eSt"></div>
+      <div class="bot-wrap" id="eBotWrap"></div>
+      <div class="enemy-equips" id="eEquips"></div>
+      <div class="hp-wrap">
+        <div class="fname" id="eName">ВРАГ</div>
+        <div class="hp-bar">
+          <div class="hp-fill" id="eHP" style="width:100%"></div>
+          <div class="hp-text" id="eHPT">— / —</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="turn-bar idle" id="turnBar">ГОТОВ К БОЮ</div>
+  <div class="actions" id="actions"></div>
+
+  <div class="main">
+    <button class="big" id="shopBtn">🛒</button>
+    <button class="big" id="invBtn">🎒</button>
+    <button class="big" id="fightBtn">⚔️ СРАЖАТЬСЯ</button>
+  </div>
+</div>
+
+<div id="fx"></div>
+<div id="toast"></div>
+
+<div id="matchmaking">
+  <div class="mm-title">ПОИСК СОПЕРНИКА</div>
+  <div class="mm-spinner"><div class="mm-inner">🤖</div></div>
+  <div class="mm-names" id="mmName">...</div>
+  <div class="mm-sub" id="mmSub">Сканирую арену...</div>
+</div>
+
+<div class="modal" id="shopModal">
+  <div class="modal-box">
+    <button class="x-btn" id="shopClose">✕</button>
+    <h2>СУНДУК</h2>
+    <div class="balance">Баланс: <span id="shopPts">100</span> 💎</div>
+
+    <div class="chest-wrap" id="chestWrap">
+      <div class="lightbeam"></div>
+      <div class="flyitem" id="flyItem"></div>
+
+      <!-- ОСНОВАНИЕ (нижняя часть) -->
+      <div class="chest-base">
+        <svg viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="woodBase" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8a5528"/>
+              <stop offset="0.45" stop-color="#6a3a14"/>
+              <stop offset="1" stop-color="#3a1e08"/>
+            </linearGradient>
+            <linearGradient id="metalBand" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffe9a0"/>
+              <stop offset="0.35" stop-color="#d8a828"/>
+              <stop offset="0.55" stop-color="#a87c08"/>
+              <stop offset="1" stop-color="#6a4a00"/>
+            </linearGradient>
+            <linearGradient id="lockGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fff4b8"/>
+              <stop offset="0.4" stop-color="#e0b028"/>
+              <stop offset="1" stop-color="#8a6008"/>
+            </linearGradient>
+            <pattern id="grainB" width="4" height="4" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="2" x2="4" y2="2" stroke="#000" stroke-width="0.5" opacity="0.18"/>
+            </pattern>
+          </defs>
+
+          <!-- Тень под сундуком -->
+          <ellipse cx="100" cy="86" rx="85" ry="4" fill="#000" opacity="0.55"/>
+
+          <!-- Корпус основания -->
+          <path d="M22 0 L178 0 L178 78 Q178 84 172 84 L28 84 Q22 84 22 78 Z"
+                fill="url(#woodBase)" stroke="#2a1408" stroke-width="3"/>
+          <path d="M22 0 L178 0 L178 78 Q178 84 172 84 L28 84 Q22 84 22 78 Z"
+                fill="url(#grainB)"/>
+
+          <!-- Доски основания -->
+          <line x1="55" y1="2" x2="55" y2="82" stroke="#2a1408" stroke-width="1.5" opacity="0.45"/>
+          <line x1="100" y1="2" x2="100" y2="82" stroke="#2a1408" stroke-width="1.5" opacity="0.45"/>
+          <line x1="145" y1="2" x2="145" y2="82" stroke="#2a1408" stroke-width="1.5" opacity="0.45"/>
+
+          <!-- Металлические полосы -->
+          <rect x="30" y="6" width="16" height="70" rx="2"
+                fill="url(#metalBand)" stroke="#5a3a00" stroke-width="1.5"/>
+          <rect x="154" y="6" width="16" height="70" rx="2"
+                fill="url(#metalBand)" stroke="#5a3a00" stroke-width="1.5"/>
+
+          <!-- Заклёпки -->
+          <circle cx="38" cy="16" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+          <circle cx="38" cy="66" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+          <circle cx="162" cy="16" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+          <circle cx="162" cy="66" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+
+          <!-- ЗАМОК — наверху основания, по центру -->
+          <rect x="84" y="0" width="32" height="30" rx="4"
+                fill="url(#lockGrad)" stroke="#5a3a00" stroke-width="2"/>
+          <circle cx="100" cy="12" r="4.5" fill="#3a2400"/>
+          <rect x="98" y="12" width="4" height="12" fill="#3a2400"/>
+          <!-- Блик на замке -->
+          <path d="M88 4 Q92 3 96 4" stroke="#fff4b8" stroke-width="1.5" fill="none" opacity="0.8"/>
+        </svg>
+      </div>
+
+      <!-- КРЫШКА (верхняя часть, откидывается) -->
+      <div class="chest-lid">
+        <svg viewBox="0 0 200 75" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="woodLid" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#b87a44"/>
+              <stop offset="0.5" stop-color="#8a5528"/>
+              <stop offset="1" stop-color="#5a3214"/>
+            </linearGradient>
+            <linearGradient id="metalLid" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffe9a0"/>
+              <stop offset="0.35" stop-color="#d8a828"/>
+              <stop offset="0.55" stop-color="#a87c08"/>
+              <stop offset="1" stop-color="#6a4a00"/>
+            </linearGradient>
+            <pattern id="grainL" width="4" height="4" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="2" x2="4" y2="2" stroke="#000" stroke-width="0.5" opacity="0.18"/>
+            </pattern>
+          </defs>
+
+          <!-- Крышка (дуга) -->
+          <path d="M22 75 L22 45 Q22 6 100 6 Q178 6 178 45 L178 75 Z"
+                fill="url(#woodLid)" stroke="#2a1408" stroke-width="3"/>
+          <path d="M22 75 L22 45 Q22 6 100 6 Q178 6 178 45 L178 75 Z"
+                fill="url(#grainL)"/>
+
+          <!-- Продольные линии на крышке -->
+          <path d="M100 8 L100 75" stroke="#2a1408" stroke-width="1.5" opacity="0.4"/>
+          <path d="M60 14 Q60 40 60 75" stroke="#2a1408" stroke-width="1" fill="none" opacity="0.3"/>
+          <path d="M140 14 Q140 40 140 75" stroke="#2a1408" stroke-width="1" fill="none" opacity="0.3"/>
+
+          <!-- Металлические полосы (совпадают с полосами основания) -->
+          <path d="M30 75 L30 48 Q30 26 40 22 L46 22 L46 75 Z"
+                fill="url(#metalLid)" stroke="#5a3a00" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M170 75 L170 48 Q170 26 160 22 L154 22 L154 75 Z"
+                fill="url(#metalLid)" stroke="#5a3a00" stroke-width="1.5" stroke-linejoin="round"/>
+
+          <!-- Заклёпки на крышке -->
+          <circle cx="38" cy="60" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+          <circle cx="162" cy="60" r="2" fill="#fff3b0" stroke="#5a3a00"/>
+
+          <!-- Нижняя металлическая окантовка крышки -->
+          <rect x="22" y="70" width="156" height="5" fill="url(#metalLid)" stroke="#5a3a00" stroke-width="1"/>
+
+          <!-- Блик сверху -->
+          <path d="M60 14 Q85 8 110 12" stroke="#ffe7c0" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div style="font-size:14px;font-weight:900;letter-spacing:2px;color:#ffd700;text-shadow:0 0 12px #ffd700;margin-top:8px;text-align:center;">
+      СУНДУК СО СПОСОБНОСТЬЮ
+    </div>
+    <div style="font-size:11px;color:#b8a8ff;margin-bottom:8px;text-align:center;">Случайная боевая способность</div>
+    <div style="text-align:center;"><button class="chest-btn" id="chestBtn">ОТКРЫТЬ — 60 💎</button></div>
+
+    <div class="price-info">
+      💰 <b>100 монет = 29₽</b><br>
+      Telegram: <span class="tg">@Vordeferst</span>
+    </div>
+
+    <div class="promo-section">
+      <div class="promo-title">🎁 Промокод на 100 💎</div>
+      <div class="promo-row">
+        <input type="text" id="promoInput" placeholder="ВВЕДИ ПРОМОКОД" maxlength="20" autocomplete="off">
+        <button class="promo-btn" id="promoBtn">АКТИВ</button>
+      </div>
+      <div class="promo-status" id="promoStatus"></div>
+      <div class="promo-count" id="promoCount">Активировано: 0 / 50</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="invModal">
+  <div class="modal-box">
+    <button class="x-btn" id="invClose">✕</button>
+    <h2>🎒 ИНВЕНТАРЬ</h2>
+    <div style="font-size:11px;color:#b8a8ff;text-align:center;margin-bottom:12px;">
+      Экипируй <b style="color:#00ff88">ОДНУ</b> способность — она появится рядом с роботом
+    </div>
+    <div class="inv-grid" id="invGrid"></div>
+    <div class="inv-hint">
+      Нажми на карточку чтобы <b>экипировать</b> её. Повторное нажатие — снять.
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="resModal">
+  <div class="modal-box">
+    <div id="resTitle">—</div>
+    <div id="resReward">+0 💎</div>
+    <button id="resBtn">ПРОДОЛЖИТЬ</button>
+  </div>
+</div>
+
+<script>
+/* ============ SVG РОБОТ (металлические цвета) ============ */
+function makeRobot(bodyLight, bodyMid, bodyDark, metalLight, metalDark, accentColor, eyeColor) {
+  const id = "r" + bodyMid.replace('#','');
+  return `
+  <svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="body-${id}" x1="0.3" y1="0" x2="0.7" y2="1">
+        <stop offset="0" stop-color="${bodyLight}"/>
+        <stop offset="0.25" stop-color="${bodyMid}"/>
+        <stop offset="0.65" stop-color="${bodyMid}"/>
+        <stop offset="1" stop-color="${bodyDark}"/>
+      </linearGradient>
+      <linearGradient id="metal-${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${metalLight}"/>
+        <stop offset="0.4" stop-color="${metalDark}"/>
+        <stop offset="0.7" stop-color="#2a3038"/>
+        <stop offset="1" stop-color="#14181e"/>
+      </linearGradient>
+      <radialGradient id="eye-${id}">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.35" stop-color="${eyeColor}"/>
+        <stop offset="1" stop-color="${eyeColor}" stop-opacity="0.35"/>
+      </radialGradient>
+      <linearGradient id="coreRing-${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#e8eef5"/>
+        <stop offset="0.5" stop-color="#7a8898"/>
+        <stop offset="1" stop-color="#3a4048"/>
+      </linearGradient>
+      <filter id="glow-${id}" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3"/>
+      </filter>
+    </defs>
+    <ellipse cx="100" cy="290" rx="60" ry="6" fill="#000" opacity="0.55"/>
+
+    <!-- НОГИ -->
+    <g>
+      <rect x="62" y="200" width="28" height="58" rx="4" fill="url(#body-${id})" stroke="#10141a" stroke-width="2"/>
+      <rect x="60" y="252" width="32" height="10" rx="3" fill="url(#metal-${id})" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="56" y="260" width="40" height="22" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <line x1="60" y1="268" x2="92" y2="268" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+      <line x1="60" y1="274" x2="92" y2="274" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+      <rect x="110" y="200" width="28" height="58" rx="4" fill="url(#body-${id})" stroke="#10141a" stroke-width="2"/>
+      <rect x="108" y="252" width="32" height="10" rx="3" fill="url(#metal-${id})" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="104" y="260" width="40" height="22" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <line x1="108" y1="268" x2="140" y2="268" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+      <line x1="108" y1="274" x2="140" y2="274" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+    </g>
+
+    <!-- ЛЕВАЯ РУКА -->
+    <g>
+      <rect x="38" y="110" width="22" height="60" rx="5" fill="url(#body-${id})" stroke="#10141a" stroke-width="2"/>
+      <circle cx="49" cy="172" r="8" fill="url(#metal-${id})" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="38" y="180" width="22" height="32" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <rect x="34" y="206" width="30" height="18" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <line x1="38" y1="212" x2="60" y2="212" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+    </g>
+
+    <!-- ТОРС -->
+    <g>
+      <rect x="58" y="100" width="84" height="108" rx="6" fill="url(#body-${id})" stroke="#10141a" stroke-width="2.5"/>
+      <!-- верхняя пластина -->
+      <rect x="64" y="104" width="72" height="8" rx="2" fill="url(#metal-${id})" opacity="0.6"/>
+      <!-- нагрудная панель -->
+      <rect x="68" y="115" width="64" height="48" rx="4" fill="#0a0e14" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="72" y="119" width="56" height="40" rx="3" fill="#05070a" stroke="${accentColor}" stroke-width="1.5"/>
+      <!-- ядро -->
+      <circle cx="100" cy="139" r="18" fill="${accentColor}" opacity="0.35" filter="url(#glow-${id})"/>
+      <circle class="core" cx="100" cy="139" r="13" fill="url(#eye-${id})"/>
+      <circle cx="100" cy="139" r="13" fill="none" stroke="url(#coreRing-${id})" stroke-width="2"/>
+      <circle cx="100" cy="139" r="5" fill="#ffffff" opacity="0.95"/>
+      <!-- индикаторы сверху -->
+      <circle cx="76" cy="107" r="3" fill="#00ff88"/>
+      <circle cx="86" cy="107" r="3" fill="#ffd700"/>
+      <circle cx="96" cy="107" r="3" fill="${accentColor}"/>
+      <!-- болты -->
+      <circle cx="66" cy="118" r="2" fill="url(#metal-${id})" stroke="#10141a" stroke-width="0.5"/>
+      <circle cx="66" cy="190" r="2" fill="url(#metal-${id})" stroke="#10141a" stroke-width="0.5"/>
+      <circle cx="134" cy="118" r="2" fill="url(#metal-${id})" stroke="#10141a" stroke-width="0.5"/>
+      <circle cx="134" cy="190" r="2" fill="url(#metal-${id})" stroke="#10141a" stroke-width="0.5"/>
+      <!-- нижняя панель -->
+      <rect x="70" y="172" width="60" height="28" rx="3" fill="#0a0e14" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="76" y="178" width="20" height="6" rx="2" fill="${accentColor}" opacity="0.7"/>
+      <rect x="104" y="178" width="20" height="6" rx="2" fill="${accentColor}" opacity="0.7"/>
+      <rect x="76" y="188" width="48" height="6" rx="2" fill="${accentColor}" opacity="0.3"/>
+      <!-- нижняя металлическая окантовка -->
+      <rect x="58" y="200" width="84" height="8" rx="3" fill="url(#metal-${id})" opacity="0.7"/>
+    </g>
+
+    <!-- ПРАВАЯ РУКА (с кулаком) -->
+    <g class="${bodyLight === '#d8e0e8' ? 'p-fist' : 'e-fist'}">
+      <rect x="140" y="110" width="22" height="60" rx="5" fill="url(#body-${id})" stroke="#10141a" stroke-width="2"/>
+      <circle cx="151" cy="172" r="8" fill="url(#metal-${id})" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="140" y="180" width="22" height="32" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <rect x="136" y="206" width="30" height="18" rx="4" fill="url(#metal-${id})" stroke="#10141a" stroke-width="2"/>
+      <line x1="140" y1="212" x2="162" y2="212" stroke="#10141a" stroke-width="1" opacity="0.7"/>
+      <circle cx="146" cy="215" r="3" fill="#10141a"/>
+      <circle cx="156" cy="215" r="3" fill="#10141a"/>
+    </g>
+
+    <!-- ШЕЯ -->
+    <rect x="88" y="86" width="24" height="18" fill="url(#metal-${id})" stroke="#10141a" stroke-width="1.5"/>
+    <line x1="88" y1="92" x2="112" y2="92" stroke="#10141a" stroke-width="1" opacity="0.6"/>
+    <line x1="88" y1="98" x2="112" y2="98" stroke="#10141a" stroke-width="1" opacity="0.6"/>
+
+    <!-- ГОЛОВА -->
+    <g>
+      <rect x="76" y="30" width="3" height="34" fill="url(#metal-${id})"/>
+      <circle cx="77" cy="28" r="4" fill="${accentColor}" filter="url(#glow-${id})"/>
+      <rect x="121" y="30" width="3" height="34" fill="url(#metal-${id})"/>
+      <circle cx="122" cy="28" r="4" fill="${accentColor}" filter="url(#glow-${id})"/>
+
+      <rect x="64" y="46" width="72" height="44" rx="6" fill="url(#body-${id})" stroke="#10141a" stroke-width="2.5"/>
+      <!-- верхняя пластина головы -->
+      <rect x="68" y="50" width="64" height="4" rx="2" fill="url(#metal-${id})" opacity="0.6"/>
+
+      <rect x="72" y="56" width="56" height="22" rx="4" fill="#05070a" stroke="#10141a" stroke-width="1.5"/>
+      <rect x="78" y="62" width="12" height="8" rx="2" fill="${eyeColor}" filter="url(#glow-${id})"/>
+      <rect x="110" y="62" width="12" height="8" rx="2" fill="${eyeColor}" filter="url(#glow-${id})"/>
+      <rect x="78" y="62" width="12" height="8" rx="2" fill="${eyeColor}" opacity="0.95"/>
+      <rect x="110" y="62" width="12" height="8" rx="2" fill="${eyeColor}" opacity="0.95"/>
+
+      <line x1="84" y1="84" x2="116" y2="84" stroke="#10141a" stroke-width="2"/>
+      <line x1="88" y1="80" x2="88" y2="88" stroke="#10141a" stroke-width="1" opacity="0.5"/>
+      <line x1="100" y1="80" x2="100" y2="88" stroke="#10141a" stroke-width="1" opacity="0.5"/>
+      <line x1="112" y1="80" x2="112" y2="88" stroke="#10141a" stroke-width="1" opacity="0.5"/>
+    </g>
+  </svg>`;
+}
+
+// Игрок — полированный алюминий + циановые акценты
+const PLAYER_ROBOT = makeRobot(
+  "#d8e0e8", "#8a95a3", "#3a4250",
+  "#eef3f8", "#7a8593",
+  "#00dcff", "#00dcff"
+);
+
+// Враг — вороненая сталь + красные акценты
+const ENEMY_ROBOT = makeRobot(
+  "#6a7080", "#3a3e48", "#10141a",
+  "#8a95a3", "#3a424e",
+  "#ff2a5a", "#ff2a5a"
+);
+
+/* ============ ИМЕНА ============ */
+const PRE = ["xX","Super","Mega","Pro","Zloy","Krutoy","Vanya","Sanya","Petya","Dima","Kirill","Maxim","Denis","Roma","Anton","Kostya","Noob","Legenda","Boss","Kiborg","Terminator","Shadow","Ice","Ogon","Feniks"];
+const SUF = ["Destroyer","Killer","Boec","Pobeditel","Gamer","Pro","Top","Boss","Ubivator","Razrushitel","Sniper","Tank","Ninja","Hunter","Fighter","Wolf","Dragon","Tiger","Snake","Fenix"];
+const NUMS = ["228","777","666","007","2007","2009","2010","2011","2012","2013","","","","X","Z","RU","GG","WP","EZ","PLUS"];
+const BOT_NAMES = [];
+for (const p of PRE) for (const s of SUF) BOT_NAMES.push(p+s);
+
+function randomNick() {
+  const base = pick(BOT_NAMES);
+  const num = pick(NUMS);
+  if (Math.random() < 0.35) return "xX" + base + "Xx";
+  if (Math.random() < 0.25) return base + "_" + num;
+  return base + num;
+}
+
+/* ============ СПОСОБНОСТИ ============ */
+const CHEST_ABILITIES = [
+  { name: "Огненная пушка", icon: "🔥", dmg: 30, cooldown: 2, type: "fire", color: "#ff6600" },
+  { name: "Пила",           icon: "⚙️", dmg: 50, cooldown: 2, type: "saw", color: "#cccccc" },
+  { name: "Граната",        icon: "💣", dmg: 10, cooldown: 2, type: "grenade", color: "#88cc00" }
+];
+const BASE_ATTACK = { name: "Удар", dmg: 8, icon: "🤜", cd: 0 };
+
+/* ============ 50 ПРОМОКОДОВ ============ */
+const PROMO_CODES = [
+  "ROBOT100","FIGHT100","BATTLE100","ARENA100","START100",
+  "NOOB100","PRO100","BOSS100","KING100","WIN100",
+  "GAMER100","KILLER100","SHADOW100","TIGER100","DRAGON100",
+  "FENIX100","WOLF100","NINJA100","SNIPER100","TANK100",
+  "LEGEND100","SUPER100","MEGA100","ULTRA100","HYPER100",
+  "OMEGA100","ALPHA100","BETA100","GAMMA100","DELTA100",
+  "SIGMA100","FIRE100","ICE100","STORM100","THUNDER100",
+  "LIGHT100","DARK100","NEON100","CYBER100","PIXEL100",
+  "GHOST100","METAL100","ROBOTIK100","MECH100","IRON100",
+  "STEEL100","TITAN100","PHOENIX100","VICTORY100","CHAMPION100"
+];
+
+/* ============ СОСТОЯНИЕ ============ */
+const S = {
+  points: 100, wins: 0, level: 1,
+  arsenal: [],
+  equipped: null,
+  usedPromos: new Set(),
+  playerHP: 100, playerMaxHP: 100,
+  enemyHP: 100, enemyMaxHP: 100,
+  enemyDmg: 9, enemy: null,
+  enemyAbilities: [],
+  inFight: false, playerTurn: true, busy: false,
+  playerStatus: {}, enemyStatus: {}
+};
+
+/* ============ DOM ============ */
+const $ = id => document.getElementById(id);
+const pF = $("pF"), eF = $("eF");
+const pBotWrap = $("pBotWrap"), eBotWrap = $("eBotWrap");
+const pHP = $("pHP"), eHP = $("eHP"), pHPT = $("pHPT"), eHPT = $("eHPT");
+const pName = $("pName"), eName = $("eName");
+const pSt = $("pSt"), eSt = $("eSt");
+const equipBadge = $("equipBadge"), eEquips = $("eEquips");
+const hudPts = $("hudPts"), hudWins = $("hudWins"), hudLvl = $("hudLvl");
+const shopPts = $("shopPts");
+const fightBtn = $("fightBtn"), shopBtn = $("shopBtn"), invBtn = $("invBtn");
+const actions = $("actions"), turnBar = $("turnBar"), vs = $("vs");
+const shopModal = $("shopModal"), shopClose = $("shopClose");
+const invModal = $("invModal"), invClose = $("invClose"), invGrid = $("invGrid");
+const chestBtn = $("chestBtn"), chestWrap = $("chestWrap"), flyItem = $("flyItem");
+const promoInput = $("promoInput"), promoBtn = $("promoBtn"),
+      promoStatus = $("promoStatus"), promoCount = $("promoCount");
+const resModal = $("resModal"), resTitle = $("resTitle"),
+      resReward = $("resReward"), resBtn = $("resBtn");
+const fx = $("fx"), toast = $("toast");
+const matchmaking = $("matchmaking"), mmName = $("mmName"), mmSub = $("mmSub");
+
+pBotWrap.innerHTML = PLAYER_ROBOT;
+eBotWrap.innerHTML = ENEMY_ROBOT;
+
+/* ============ УТИЛИТЫ ============ */
+const rnd = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const center = el => { const r = el.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height*0.5 }; };
+
+function updateUI() {
+  hudPts.textContent = S.points;
+  hudWins.textContent = S.wins;
+  hudLvl.textContent = S.level;
+  shopPts.textContent = S.points;
+
+  pHP.style.width = Math.max(0, S.playerHP/S.playerMaxHP*100)+"%";
+  eHP.style.width = Math.max(0, S.enemyHP/S.enemyMaxHP*100)+"%";
+  pHPT.textContent = Math.max(0,S.playerHP)+" / "+S.playerMaxHP;
+  eHPT.textContent = S.inFight ? Math.max(0,S.enemyHP)+" / "+S.enemyMaxHP : "— / —";
+
+  renderSt(pSt, S.playerStatus);
+  renderSt(eSt, S.enemyStatus);
+  renderEquipBadge();
+  renderEnemyEquips();
+  renderInvGrid();
+  renderPromoCount();
+}
+
+function renderSt(el, sts) {
+  el.innerHTML = "";
+  const icons = { burn:"🔥", freeze:"❄️", stun:"⚡", shield:"🛡️" };
+  for (const k in sts) {
+    if (sts[k] > 0) {
+      const d = document.createElement("div");
+      d.className = "st-icon";
+      d.textContent = icons[k];
+      d.style.color = k==="burn"?"#ff8800":k==="freeze"?"#00dcff":k==="stun"?"#ffd700":"#00ff88";
+      el.appendChild(d);
+    }
+  }
+}
+
+function renderEquipBadge() {
+  if (!S.equipped) { equipBadge.style.display = "none"; return; }
+  equipBadge.style.display = "flex";
+  equipBadge.textContent = S.equipped.icon;
+  equipBadge.style.borderColor = S.equipped.color;
+  equipBadge.style.color = S.equipped.color;
+  equipBadge.style.boxShadow = `0 0 15px ${S.equipped.color}, inset 0 0 10px rgba(255,255,255,.15)`;
+}
+
+function renderEnemyEquips() {
+  eEquips.innerHTML = "";
+  if (!S.inFight || !S.enemyAbilities.length) return;
+  S.enemyAbilities.forEach(a => {
+    const el = document.createElement("div");
+    el.className = "enemy-equip" + (a.cd <= 0 ? " ready" : "");
+    el.textContent = a.icon;
+    el.style.borderColor = a.color;
+    el.style.color = a.color;
+    eEquips.appendChild(el);
+  });
+}
+
+function renderInvGrid() {
+  if (S.arsenal.length === 0) {
+    invGrid.innerHTML = '<div class="inv-empty">— пусто, открой сундук в магазине —</div>';
+    return;
+  }
+  invGrid.innerHTML = "";
+  S.arsenal.forEach(a => {
+    const card = document.createElement("div");
+    card.className = "inv-card " + a.type + (S.equipped === a ? " equipped" : "");
+    card.innerHTML = `
+      <div class="inv-ic">${a.icon}</div>
+      <div class="inv-nm">${a.name}</div>
+      <div class="inv-dm">${a.dmg}</div>
+      <div class="inv-cd">⏱ КД: ${a.cooldown} хода</div>
+    `;
+    card.onclick = () => toggleEquip(a);
+    invGrid.appendChild(card);
+  });
+}
+
+function toggleEquip(ability) {
+  if (S.inFight) { showToast("Не во время боя!", "#ff2a5a"); return; }
+  if (S.equipped === ability) {
+    S.equipped = null;
+    showToast("Способность снята", "#888");
+  } else {
+    S.equipped = ability;
+    showToast(`${ability.icon} ${ability.name} экипирована!`, ability.color);
+  }
+  vib(20);
+  updateUI();
+}
+
+function renderPromoCount() {
+  promoCount.textContent = `Активировано: ${S.usedPromos.size} / ${PROMO_CODES.length}`;
+}
+
+function setTurn(text, cls) {
+  turnBar.textContent = text;
+  turnBar.className = "turn-bar " + (cls || "idle");
+}
+
+function showToast(text, color="#8a3aff") {
+  toast.textContent = text;
+  toast.style.background = `linear-gradient(180deg, ${color}, #3a005a)`;
+  toast.style.borderColor = color;
+  toast.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove("show"), 1900);
+}
+
+function vib(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch(e){} }
+
+/* ============ FX ============ */
+function popDamage(target, amount, kind) {
+  const r = target.getBoundingClientRect();
+  const p = document.createElement("div");
+  const isCrit = kind==="crit", isHeal = kind==="heal";
+  p.className = "dmg" + (isCrit?" crit":"");
+  p.style.left = (r.left + r.width/2 + rnd(-20,20)) + "px";
+  p.style.top  = (r.top + r.height*0.25) + "px";
+  p.style.color = isHeal ? "#00ff88" : (isCrit ? "#ffd700" : "#ff2a5a");
+  p.textContent = (isHeal?"+":"-") + Math.abs(amount);
+  fx.appendChild(p);
+  setTimeout(()=>p.remove(), 1000);
+}
+
+function burst(x, y, color, count=16, size=8) {
+  for (let i=0; i<count; i++) {
+    const p = document.createElement("div");
+    p.className = "particle";
+    p.style.left = x + "px";
+    p.style.top  = y + "px";
+    p.style.width = p.style.height = (size * (0.5 + Math.random())) + "px";
+    p.style.background = color;
+    p.style.boxShadow = `0 0 8px ${color}`;
+    fx.appendChild(p);
+    const a = Math.random()*Math.PI*2;
+    const s = rnd(50,220);
+    const vx = Math.cos(a)*s, vy = Math.sin(a)*s - 100;
+    let lx=0, ly=0, life=0;
+    const anim = () => {
+      life++;
+      lx += vx/25; ly += vy/25; ly += 0.9;
+      const sc = Math.max(0, 1 - life/40);
+      p.style.transform = `translate(${lx}px,${ly}px) scale(${sc})`;
+      p.style.opacity = sc;
+      if (life < 40) requestAnimationFrame(anim); else p.remove();
+    };
+    requestAnimationFrame(anim);
+  }
+}
+
+function shockwave(x, y, color="#fff") {
+  const s = document.createElement("div");
+  s.className = "shock";
+  s.style.left = x + "px";
+  s.style.top = y + "px";
+  s.style.borderColor = color;
+  s.style.boxShadow = `0 0 20px ${color}`;
+  fx.appendChild(s);
+  setTimeout(() => s.remove(), 500);
+}
+
+function flash(x, y) {
+  const f = document.createElement("div");
+  f.className = "flash";
+  f.style.left = x + "px";
+  f.style.top = y + "px";
+  fx.appendChild(f);
+  setTimeout(() => f.remove(), 300);
+}
+
+function abilityBanner(text, color) {
+  const b = document.createElement("div");
+  b.className = "ability-banner";
+  b.style.color = color;
+  b.textContent = text;
+  fx.appendChild(b);
+  setTimeout(() => b.remove(), 1500);
+}
+
+function fireball(x, y) {
+  const f = document.createElement("div");
+  f.className = "fireball";
+  f.style.left = x + "px";
+  f.style.top = y + "px";
+  fx.appendChild(f);
+  setTimeout(() => f.remove(), 600);
+}
+
+function explosion(x, y) {
+  const e = document.createElement("div");
+  e.className = "explosion";
+  e.style.left = x + "px";
+  e.style.top = y + "px";
+  fx.appendChild(e);
+  setTimeout(() => e.remove(), 700);
+}
+
+function sawTrail(x, y, isPlayer) {
+  for (let i = 0; i < 3; i++) {
+    const t = document.createElement("div");
+    t.className = "saw-trail";
+    t.style.left = (x - (isPlayer ? 60 : 0) + i * 10) + "px";
+    t.style.top  = (y - 20 + i * 20) + "px";
+    t.style.width = "90px";
+    fx.appendChild(t);
+    setTimeout(() => t.remove(), 500);
+  }
+}
+
+// Свечение у кулака перед ударом
+function chargeGlow(isPlayer, color) {
+  const el = isPlayer ? pF : eF;
+  const r = el.getBoundingClientRect();
+  const g = document.createElement("div");
+  g.className = "charge-glow";
+  g.style.width = "50px";
+  g.style.height = "50px";
+  g.style.color = color;
+  // Позиция у кулака робота
+  const x = isPlayer ? r.right - 40 : r.left + 40;
+  const y = r.top + r.height * 0.72;
+  g.style.left = x + "px";
+  g.style.top = y + "px";
+  fx.appendChild(g);
+  setTimeout(() => g.remove(), 550);
+}
+
+/* ============ МАТЧМЕЙКИНГ ============ */
+function showMatchmaking() {
+  return new Promise(resolve => {
+    matchmaking.classList.add("show");
+    mmName.textContent = "...";
+    mmSub.textContent = "Сканирую арену...";
+    let flips = 0;
+    const fi = setInterval(() => {
+      mmName.textContent = randomNick();
+      flips++;
+      if (flips > 5) mmSub.textContent = "Найден соперник!";
+    }, 170);
+    setTimeout(() => {
+      clearInterval(fi);
+      const finalName = randomNick();
+      mmName.textContent = finalName;
+      mmSub.textContent = "Готов к бою!";
+      vib([30,40,30]);
+      setTimeout(() => { matchmaking.classList.remove("show"); resolve(finalName); }, 450);
+    }, 1500);
+  });
+}
+
+/* ============ МАГАЗИН ============ */
+shopBtn.onclick = () => {
+  if (S.inFight) { showToast("Не во время боя!", "#ff2a5a"); return; }
+  shopModal.classList.add("show");
+  chestWrap.classList.remove("open");
+  promoStatus.textContent = "";
+  promoInput.value = "";
+  updateUI();
+};
+shopClose.onclick = () => { shopModal.classList.remove("show"); chestWrap.classList.remove("open"); };
+shopModal.onclick = e => { if (e.target === shopModal) { shopModal.classList.remove("show"); chestWrap.classList.remove("open"); } };
+
+invBtn.onclick = () => {
+  if (S.inFight) { showToast("Не во время боя!", "#ff2a5a"); return; }
+  invModal.classList.add("show");
+  updateUI();
+};
+invClose.onclick = () => invModal.classList.remove("show");
+invModal.onclick = e => { if (e.target === invModal) invModal.classList.remove("show"); };
+
+const CHEST_PRICE = 60;
+let chestOpening = false;
+
+chestBtn.onclick = () => {
+  if (chestOpening) return;
+  if (S.points < CHEST_PRICE) {
+    showToast("Нужно 60 💎", "#ff2a5a");
+    vib(80);
+    return;
+  }
+  S.points -= CHEST_PRICE;
+  updateUI();
+  chestOpening = true;
+  chestBtn.disabled = true;
+
+  const ab = { ...pick(CHEST_ABILITIES) };
+
+  chestWrap.classList.add("open");
+  vib([50, 40, 80]);
+
+  setTimeout(() => {
+    flyItem.textContent = ab.icon;
+    flyItem.style.color = ab.color;
+    flyItem.classList.remove("fly");
+    void flyItem.offsetWidth;
+    flyItem.classList.add("fly");
+    const rect = chestWrap.getBoundingClientRect();
+    burst(rect.left + rect.width/2, rect.top + rect.height/2, ab.color, 30, 10);
+    vib([30,30,60]);
+  }, 650);
+
+  setTimeout(() => {
+    const existing = S.arsenal.find(a => a.name === ab.name);
+    if (existing) {
+      existing.dmg += 10;
+      showToast(`${ab.icon} ${ab.name} улучшен (+10 урона!)`, ab.color);
+    } else {
+      ab.cd = 0;
+      S.arsenal.push(ab);
+      if (!S.equipped) S.equipped = ab;
+      showToast(`${ab.icon} ${ab.name} получен!`, ab.color);
+    }
+    updateUI();
+    chestOpening = false;
+    chestBtn.disabled = false;
+  }, 1700);
+
+  setTimeout(() => chestWrap.classList.remove("open"), 2400);
+};
+
+/* ПРОМОКОД */
+promoBtn.onclick = () => {
+  const code = promoInput.value.trim().toUpperCase();
+  if (!code) {
+    promoStatus.textContent = "Введи код!";
+    promoStatus.className = "promo-status err";
+    return;
+  }
+  if (S.usedPromos.has(code)) {
+    promoStatus.textContent = "Этот код уже использован";
+    promoStatus.className = "promo-status err";
+    vib(60); return;
+  }
+  if (!PROMO_CODES.includes(code)) {
+    promoStatus.textContent = "Неверный промокод";
+    promoStatus.className = "promo-status err";
+    vib(60); return;
+  }
+  S.usedPromos.add(code);
+  S.points += 100;
+  promoStatus.textContent = "+100 💎 активировано!";
+  promoStatus.className = "promo-status ok";
+  promoInput.value = "";
+  showToast("🎁 +100 💎 по промокоду!", "#00ff88");
+  vib([50,50,50]);
+  updateUI();
+};
+
+promoInput.addEventListener("keydown", e => { if (e.key === "Enter") promoBtn.click(); });
+
+/* ============ БОЙ ============ */
+fightBtn.onclick = startFight;
+
+async function startFight() {
+  if (S.inFight) return;
+
+  S.playerStatus = {}; S.enemyStatus = {}; S.busy = false;
+  S.playerMaxHP = 100 + S.wins * 6;
+  S.playerHP = S.playerMaxHP;
+
+  fightBtn.disabled = true;
+  fightBtn.textContent = "ПОИСК...";
+  const enemyNick = await showMatchmaking();
+
+  const diff = Math.floor(S.wins / 2);
+  S.enemy = { name: enemyNick, hp: 100 + diff * 20, dmg: 9 + diff * 2 };
+  S.enemyMaxHP = S.enemy.hp;
+  S.enemyHP = S.enemy.hp;
+  S.enemyDmg = S.enemy.dmg;
+
+  const shuffled = [...CHEST_ABILITIES].sort(() => Math.random() - 0.5);
+  const count = Math.random() < 0.4 ? 2 : 1;
+  S.enemyAbilities = shuffled.slice(0, count).map(a => ({
+    ...a, cd: 0, dmg: a.dmg + diff * 3
+  }));
+
+  eF.style.visibility = "visible";
+  eName.textContent = S.enemy.name;
+
+  [pF, eF].forEach(el => el.classList.remove("dead","hurt","attack","spawn","active","heal-anim","fire","saw","grenade"));
+  pF.classList.add("spawn","active");
+  eF.classList.add("spawn");
+  setTimeout(() => { pF.classList.remove("spawn"); eF.classList.remove("spawn"); }, 550);
+
+  vs.style.display = "block";
+  setTimeout(() => { vs.style.display = "none"; }, 700);
+
+  S.inFight = true;
+  S.playerTurn = true;
+
+  fightBtn.disabled = true;
+  fightBtn.textContent = "⚔️ В БОЮ";
+
+  if (S.equipped) S.equipped.cd = 0;
+
+  updateUI();
+  renderActions();
+  setTurn("▶ ТВОЙ ХОД", "player");
+}
+
+function renderActions() {
+  actions.innerHTML = "";
+  if (!S.inFight || !S.playerTurn || S.busy) return;
+
+  const baseBtn = document.createElement("button");
+  baseBtn.className = "act";
+  baseBtn.innerHTML = `
+    <div class="ic">🤜</div>
+    <div class="nm">Удар</div>
+    <div class="dm">8</div>`;
+  baseBtn.onclick = () => playerAttack(BASE_ATTACK);
+  actions.appendChild(baseBtn);
+
+  if (S.equipped) {
+    const a = S.equipped;
+    const isReady = !a.cd || a.cd <= 0;
+    const btn = document.createElement("button");
+    let cls = "act " + a.type;
+    if (!isReady) cls += " cd";
+    btn.className = cls;
+    btn.innerHTML = `
+      <div class="ic">${a.icon}</div>
+      <div class="nm">${a.name}</div>
+      <div class="dm">${a.dmg}</div>`;
+    if (!isReady) {
+      btn.disabled = true;
+      btn.dataset.cd = a.cd;
+    } else {
+      btn.onclick = () => playerAttack(a);
+    }
+    actions.appendChild(btn);
+  }
+}
+
+/* Воспроизведение атаки: замах → заряд → удар → возврат
+   Визуальный контакт происходит через 400ms (совпадает с keyframe 55-65%)
+*/
+function playAttack(attacker, isPlayer, atk) {
+  attacker.classList.remove("active");
+  attacker.classList.add("attack");
+  if (atk.type) attacker.classList.add(atk.type);
+
+  const attackerEl = isPlayer ? pF : eF;
+  const defender = isPlayer ? eF : pF;
+
+  // Название способности
+  if (atk.type) {
+    const color = atk.type === "fire" ? "#ff8822"
+                : atk.type === "saw" ? "#ffffff"
+                : "#aadd33";
+    setTimeout(() => abilityBanner(`${atk.icon} ${atk.name}`, color), 150);
+  }
+
+  // Свечение у кулака во время замаха
+  const chargeColor = atk.type === "fire" ? "#ff8822"
+                    : atk.type === "saw" ? "#ffffff"
+                    : atk.type === "grenade" ? "#aadd33"
+                    : (isPlayer ? "#00dcff" : "#ff2a5a");
+  chargeGlow(isPlayer, chargeColor);
+
+  // Спидлайны в момент удара
+  const aC = center(attackerEl);
+  setTimeout(() => {
+    for (let i = 0; i < 4; i++) {
+      const sl = document.createElement("div");
+      sl.className = "speedline";
+      sl.style.left = (aC.x + (isPlayer ? 20 : -100)) + "px";
+      sl.style.top = (aC.y - 40 + i * 22) + "px";
+      sl.style.width = "80px";
+      if (!isPlayer) sl.style.transform = "scaleX(-1)";
+      fx.appendChild(sl);
+      setTimeout(() => sl.remove(), 400);
+    }
+  }, 330);
+
+  // Визуальный контакт через 400ms
+  const dC = center(defender);
+  setTimeout(() => {
+    if (atk.type === "fire") {
+      fireball(dC.x, dC.y);
+      burst(dC.x, dC.y, "#ff6600", 26, 10);
+      burst(dC.x, dC.y, "#ffcc00", 16, 8);
+      shockwave(dC.x, dC.y, "#ff8822");
+      vib(70);
+    } else if (atk.type === "saw") {
+      sawTrail(dC.x, dC.y, isPlayer);
+      burst(dC.x, dC.y, "#ffffff", 24, 6);
+      burst(dC.x, dC.y, "#cccccc", 16, 8);
+      flash(dC.x, dC.y);
+      vib(60);
+    } else if (atk.type === "grenade") {
+      explosion(dC.x, dC.y);
+      burst(dC.x, dC.y, "#aadd33", 30, 10);
+      shockwave(dC.x, dC.y, "#88cc00");
+      vib(80);
+    } else {
+      flash(dC.x, dC.y);
+      shockwave(dC.x, dC.y, isPlayer ? "#00dcff" : "#ff2a5a");
+      burst(dC.x, dC.y, isPlayer ? "#a8d8ff" : "#ff4466", 22, 9);
+      vib(35);
+    }
+  }, 400);
+
+  setTimeout(() => {
+    attacker.classList.remove("attack");
+    if (atk.type) attacker.classList.remove(atk.type);
+  }, 720);
+}
+
+function playerAttack(atk) {
+  if (!S.inFight || !S.playerTurn || S.busy) return;
+  if (atk.cd && atk.cd > 0) return;
+  S.busy = true; S.playerTurn = false;
+  actions.innerHTML = "";
+  vib(15);
+
+  if (S.playerStatus.stun > 0) {
+    S.playerStatus.stun--;
+    setTurn("⚡ ОГЛУШЁН", "enemy");
+    updateUI();
+    setTimeout(enemyTurn, 900);
+    return;
+  }
+
+  playAttack(pF, true, atk);
+
+  // Урон применяется через 400ms — точно в момент визуального контакта
+  setTimeout(() => {
+    let dmg = atk.dmg + rnd(-2, 3);
+    const isCrit = Math.random() < 0.12 && !atk.type;
+    if (isCrit) dmg = Math.floor(dmg * 1.7);
+
+    if (S.enemyStatus.shield > 0) {
+      dmg = Math.floor(dmg * 0.4);
+      S.enemyStatus.shield--;
+    }
+
+    S.enemyHP -= dmg;
+    popDamage(eF, dmg, isCrit ? "crit" : null);
+    eF.classList.add("hurt");
+    setTimeout(() => eF.classList.remove("hurt"), 380);
+
+    if (atk.cooldown) atk.cd = atk.cooldown;
+
+    updateUI();
+    if (S.enemyHP <= 0) { endFight(true); return; }
+    setTimeout(enemyTurn, 800);
+  }, 400);
+}
+
+function enemyTurn() {
+  if (!S.inFight) return;
+
+  if (S.enemyStatus.stun > 0) {
+    S.enemyStatus.stun--;
+    setTurn("⚡ " + S.enemy.name + " ОГЛУШЁН", "player");
+    updateUI();
+    setTimeout(backToPlayer, 900);
+    return;
+  }
+  if (S.enemyStatus.freeze > 0 && Math.random() < 0.5) {
+    S.enemyStatus.freeze--;
+    setTurn("❄️ " + S.enemy.name + " ЗАМОРОЖЕН", "player");
+    updateUI();
+    setTimeout(backToPlayer, 900);
+    return;
+  }
+
+  const readyAbility = S.enemyAbilities.find(a => a.cd <= 0);
+  let atk = BASE_ATTACK;
+  if (readyAbility && Math.random() < 0.6) atk = readyAbility;
+
+  setTurn("▶ " + S.enemy.name + " ЗАМАХИВАЕТСЯ", "enemy");
+  playAttack(eF, false, atk);
+
+  setTimeout(() => {
+    let dmg;
+    if (atk.type) {
+      dmg = atk.dmg + rnd(-3, 3);
+      if (atk.cooldown) atk.cd = atk.cooldown;
+    } else {
+      dmg = S.enemyDmg + rnd(-2, 4);
+    }
+
+    if (S.playerStatus.shield > 0) {
+      dmg = Math.floor(dmg * 0.4);
+      S.playerStatus.shield--;
+    }
+
+    S.playerHP -= dmg;
+    popDamage(pF, dmg);
+    pF.classList.add("hurt");
+    setTimeout(() => pF.classList.remove("hurt"), 380);
+
+    if (S.playerStatus.burn > 0) {
+      S.playerHP -= 5;
+      S.playerStatus.burn--;
+      popDamage(pF, 5);
+    }
+
+    updateUI();
+    if (S.playerHP <= 0) { endFight(false); return; }
+
+    if (S.enemyStatus.burn > 0) {
+      S.enemyHP -= 5;
+      S.enemyStatus.burn--;
+      popDamage(eF, 5);
+      updateUI();
+      if (S.enemyHP <= 0) { endFight(true); return; }
+    }
+
+    setTimeout(backToPlayer, 800);
+  }, 400);
+}
+
+function backToPlayer() {
+  if (!S.inFight) return;
+  S.playerTurn = true; S.busy = false;
+
+  if (S.equipped && S.equipped.cd > 0) S.equipped.cd--;
+  S.enemyAbilities.forEach(a => { if (a.cd && a.cd > 0) a.cd--; });
+
+  pF.classList.add("active");
+  eF.classList.remove("active");
+  setTurn("▶ ТВОЙ ХОД", "player");
+  renderActions();
+  updateUI();
+}
+
+function endFight(won) {
+  S.inFight = false; S.busy = false;
+  actions.innerHTML = "";
+  fightBtn.disabled = false;
+  fightBtn.textContent = "⚔️ СРАЖАТЬСЯ";
+  pF.classList.remove("active");
+  eF.classList.remove("active");
+  setTurn("БОЙ ОКОНЧЕН", "idle");
+
+  if (won) {
+    const reward = 25 + S.wins * 8;
+    S.points += reward;
+    S.wins++;
+    if (S.wins % 3 === 0) S.level++;
+    eF.classList.add("dead");
+    vib([50,50,100]);
+    setTimeout(() => {
+      resTitle.textContent = "ПОБЕДА";
+      resTitle.className = "win";
+      resReward.textContent = `+${reward} 💎  •  Побед: ${S.wins}`;
+      resModal.classList.add("show");
+    }, 800);
+  } else {
+    pF.classList.add("dead");
+    vib([100,50,100,50,200]);
+    setTimeout(() => {
+      resTitle.textContent = "ПОРАЖЕНИЕ";
+      resTitle.className = "lose";
+      resReward.textContent = `Побед всего: ${S.wins}`;
+      resModal.classList.add("show");
+    }, 800);
+  }
+
+  updateUI();
+}
+
+resBtn.onclick = () => {
+  resModal.classList.remove("show");
+  [pF, eF].forEach(el => el.classList.remove("dead","hurt","attack","spawn","active","heal-anim","fire","saw","grenade"));
+  eF.style.visibility = "hidden";
+  S.playerHP = S.playerMaxHP;
+  S.enemyHP = 0;
+  S.playerStatus = {}; S.enemyStatus = {};
+  S.enemyAbilities = [];
+  eName.textContent = "ВРАГ";
+  eEquips.innerHTML = "";
+  vs.style.display = "block";
+  setTurn("ГОТОВ К БОЮ", "idle");
+  updateUI();
+};
+
+let lt = 0;
+document.addEventListener("touchend", e => {
+  const n = Date.now();
+  if (n - lt < 300) e.preventDefault();
+  lt = n;
+}, { passive: false });
+
+updateUI();
+</script>
+</body>
+</html>
